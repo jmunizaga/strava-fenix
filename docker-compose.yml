@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: strava-fenix-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - STRAVA_ACCESS_TOKEN=${STRAVA_ACCESS_TOKEN}
+      - STRAVA_CLUB_ID=${STRAVA_CLUB_ID}
+    volumes:
+      - ./backend/app:/app/app
+    networks:
+      - strava-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: strava-fenix-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - strava-network
+    restart: unless-stopped
+
+networks:
+  strava-network:
+    driver: bridge
