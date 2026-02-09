@@ -11,14 +11,8 @@ const api = axios.create({
 });
 
 export const rankingsApi = {
-    /**
-     * Get weekly rankings
-     * @param {string} category - Category code (general, elite, amateur, master_a, etc.)
-     * @param {string|null} gender - Gender filter (M, F, or null for all)
-     * @param {number} weekOffset - Week offset (0=current, -1=last week)
-     */
-    async getWeeklyRankings(category = 'general', gender = null, weekOffset = 0) {
-        const params = { category, week_offset: weekOffset };
+    async getWeeklyRankings(gender = null, weekOffset = -1) {
+        const params = { week_offset: weekOffset };
         if (gender) {
             params.gender = gender;
         }
@@ -27,11 +21,21 @@ export const rankingsApi = {
         return response.data;
     },
 
+
+
     /**
-     * Get all available UCI categories
+     * Get Strava login URL
      */
-    async getCategories() {
-        const response = await api.get('/api/rankings/categories');
+    async getLoginUrl() {
+        const response = await api.get('/api/auth/login');
+        return response.data.url;
+    },
+
+    /**
+     * Send auth code to backend
+     */
+    async sendAuthCallback(code) {
+        const response = await api.post('/api/auth/callback', { code });
         return response.data;
     },
 };

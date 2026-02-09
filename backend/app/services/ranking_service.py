@@ -1,19 +1,14 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from collections import defaultdict
-from app.models.models import Athlete, Activity, AthleteMetrics, UCICategory, WeeklyRanking
+from app.models.models import Athlete, Activity, AthleteMetrics, WeeklyRanking
 from app.services.strava_service import strava_service
+from app.database import SessionLocal
+from app.models.db_models import User
+import time
 
 
-# UCI Categories definition
-UCI_CATEGORIES = [
-    UCICategory(code="elite", name="Elite", min_age=0, max_age=22),
-    UCICategory(code="amateur", name="Amateur", min_age=23, max_age=29),
-    UCICategory(code="master_a", name="Master A", min_age=30, max_age=39),
-    UCICategory(code="master_b", name="Master B", min_age=40, max_age=49),
-    UCICategory(code="master_c", name="Master C", min_age=50, max_age=59),
-    UCICategory(code="master_d", name="Master D", min_age=60, max_age=None),
-]
+
 
 
 class RankingService:
@@ -34,25 +29,7 @@ class RankingService:
         week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
         return week_start, week_end
     
-    @staticmethod
-    def calculate_age(birthdate: Optional[datetime]) -> int:
-        """Calculate age from birthdate."""
-        if not birthdate:
-            return 30  # Default age if not available
-        
-        today = datetime.now()
-        age = today.year - birthdate.year
-        if (today.month, today.day) < (birthdate.month, birthdate.day):
-            age -= 1
-        return age
-    
-    @staticmethod
-    def get_uci_category(age: int) -> str:
-        """Determine UCI category based on age."""
-        for category in UCI_CATEGORIES:
-            if category.min_age <= age and (category.max_age is None or age <= category.max_age):
-                return category.code
-        return "amateur"  # Default
+
     
     @staticmethod
     def aggregate_metrics(athlete: Athlete, activities: list[Activity]) -> AthleteMetrics:
@@ -61,83 +38,91 @@ class RankingService:
         total_elevation = sum(activity.total_elevation_gain for activity in activities)
         longest_ride = max((activity.distance for activity in activities), default=0)
         
-        # Calculate UCI category (for now using a default age calculation)
-        # In a real scenario, we'd need birthdate from Strava
-        age = 30  # Default age - Strava API might not always provide this
-        uci_category = RankingService.get_uci_category(age)
-        
         return AthleteMetrics(
             athlete=athlete,
             total_distance=total_distance,
             total_elevation=total_elevation,
             longest_ride=longest_ride,
-            activities_count=len(activities),
-            uci_category=uci_category
+            activities_count=len(activities)
         )
     
     @staticmethod
     async def get_weekly_ranking(
-        category: str = "general",
         gender: Optional[str] = None,
-        week_offset: int = 0
+        week_offset: int = -1
     ) -> WeeklyRanking:
         """
-        Get weekly ranking for a specific category and gender.
+        Get weekly ranking for the specified gender.
         
         Args:
-            category: 'general', 'elite', 'amateur', 'master_a', 'master_b', 'master_c', 'master_d'
             gender: 'M', 'F', or None for all
             week_offset: 0 = current week, -1 = last week
         """
         week_start, week_end = RankingService.get_week_dates(week_offset)
         
-        # Get club members
-        members = await strava_service.get_club_members()
-        
-        # Get club activities for the week
-        activities = await strava_service.get_club_activities(after=week_start, before=week_end)
-        
-        # Group activities by athlete
-        activities_by_athlete = defaultdict(list)
-        for activity in activities:
-            activities_by_athlete[activity.athlete_id].append(activity)
-        
-        # Calculate metrics for each athlete
-        athlete_metrics_list = []
-        for member in members:
-            # Filter by gender if specified
-            if gender and member.sex != gender:
-                continue
+        db = SessionLocal()
+        try:
+            # Get all registered users
+            db_users = db.query(User).all()
             
-            member_activities = activities_by_athlete.get(member.id, [])
+            athlete_metrics_list = []
             
-            # Skip athletes with no activities
-            if not member_activities:
-                continue
+            for db_user in db_users:
+                # Filter by gender if specified
+                if gender and db_user.sex != gender:
+                    continue
+                
+                # Check token expiration
+                current_time = int(time.time())
+                access_token = db_user.access_token
+                
+                if db_user.expires_at <= current_time + 300: # 5 mins buffer
+                    print(f"Refreshing token for user {db_user.firstname}")
+                    new_token_data = await strava_service.refresh_athlete_token(db_user.refresh_token)
+                    if new_token_data:
+                        access_token = new_token_data["access_token"]
+                        db_user.access_token = access_token
+                        db_user.refresh_token = new_token_data["refresh_token"]
+                        db_user.expires_at = new_token_data["expires_at"]
+                        db.commit()
+                
+                # Fetch activities for this user
+                activities = await strava_service.get_athlete_activities(
+                    athlete_id=db_user.id,
+                    token=access_token,
+                    after=week_start,
+                    before=week_end
+                )
+                
+                if not activities:
+                    continue
+                
+                # Create Athlete model for metrics
+                athlete = Athlete(
+                    id=str(db_user.id),
+                    firstname=db_user.firstname,
+                    lastname=db_user.lastname,
+                    sex=db_user.sex,
+                    profile=db_user.profile
+                )
+                
+                metrics = RankingService.aggregate_metrics(athlete, activities)
+                
+                athlete_metrics_list.append(metrics)
             
-            metrics = RankingService.aggregate_metrics(member, member_activities)
+            # Sort by total distance (descending)
+            athlete_metrics_list.sort(key=lambda x: x.total_distance, reverse=True)
             
-            # Filter by category if not general
-            if category != "general" and metrics.uci_category != category:
-                continue
-            
-            athlete_metrics_list.append(metrics)
-        
-        # Sort by total distance (descending)
-        athlete_metrics_list.sort(key=lambda x: x.total_distance, reverse=True)
-        
-        return WeeklyRanking(
-            week_start=week_start,
-            week_end=week_end,
-            category=category,
-            gender=gender,
-            rankings=athlete_metrics_list
-        )
+            return WeeklyRanking(
+                week_start=week_start,
+                week_end=week_end,
+                gender=gender,
+                rankings=athlete_metrics_list
+            )
+        finally:
+            db.close()
     
-    @staticmethod
-    def get_categories() -> list[UCICategory]:
-        """Get all available UCI categories."""
-        return UCI_CATEGORIES
+
 
 
 ranking_service = RankingService()

@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import rankings
+from app.routers import rankings, auth
+from app.database import engine, Base
 
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Strava Club Rankings API",
@@ -20,7 +24,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(rankings.router)
+app.include_router(rankings.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 
 
 @app.get("/")

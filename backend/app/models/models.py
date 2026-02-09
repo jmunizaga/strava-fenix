@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class Athlete(BaseModel):
     """Athlete model with basic information."""
-    id: int
+    id: str  # Can be numeric ID or generated from name
     firstname: str
     lastname: str
     sex: str  # 'M' or 'F'
@@ -17,7 +17,7 @@ class Athlete(BaseModel):
 class Activity(BaseModel):
     """Activity model with metrics."""
     id: int
-    athlete_id: int
+    athlete_id: str
     name: str
     distance: float  # meters
     total_elevation_gain: float  # meters
@@ -26,12 +26,7 @@ class Activity(BaseModel):
     type: str
 
 
-class UCICategory(BaseModel):
-    """UCI category classification."""
-    code: str
-    name: str
-    min_age: int
-    max_age: Optional[int] = None
+
 
 
 class AthleteMetrics(BaseModel):
@@ -41,13 +36,11 @@ class AthleteMetrics(BaseModel):
     total_elevation: float  # meters
     longest_ride: float  # meters
     activities_count: int
-    uci_category: str
 
 
 class WeeklyRanking(BaseModel):
     """Weekly ranking response."""
     week_start: datetime
     week_end: datetime
-    category: str  # 'general', 'amateur', 'master_a', etc.
     gender: Optional[str] = None  # 'M', 'F', or None for all
     rankings: list[AthleteMetrics]

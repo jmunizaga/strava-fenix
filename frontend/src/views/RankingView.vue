@@ -1,27 +1,48 @@
 <template>
   <div class="min-h-screen pb-6">
     <!-- Header -->
-    <header class="bg-white shadow-sm sticky top-0 z-10">
-      <div class="max-w-2xl mx-auto px-4 py-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-strava-orange rounded-lg flex items-center justify-center">
-            <span class="text-2xl">🚴</span>
+    <header class="bg-fenix-black shadow-lg sticky top-0 z-10 border-b-2 border-fenix-orange">
+      <div class="max-w-2xl mx-auto px-4 py-5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center border-2 border-fenix-orange shadow-inner">
+              <span class="text-2xl">🔥</span>
+            </div>
+            <div>
+              <h1 class="text-2xl font-black text-white tracking-tight uppercase">Fénix <span class="text-fenix-orange">Chile</span></h1>
+              <p class="text-xs text-fenix-gray-400 font-bold uppercase tracking-widest">Ranking / {{ weekRange }}</p>
+            </div>
           </div>
-          <div>
-            <h1 class="text-xl font-bold text-strava-gray-900">Fenix Rankings</h1>
-            <p class="text-xs text-strava-gray-500">Semana del {{ weekRange }}</p>
-          </div>
+          
+          <button 
+            @click="loginWithStrava" 
+            class="hidden sm:flex items-center gap-2 bg-fenix-orange text-white px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-tighter hover:scale-105 transition-transform shadow-lg"
+            :disabled="loading"
+          >
+            <span>Connect</span>
+            <span class="bg-black text-white px-1.5 py-0.5 rounded-full">STRAVA</span>
+          </button>
         </div>
       </div>
     </header>
+
+    <!-- Mobile Auth CTA -->
+    <div class="sm:hidden p-4">
+      <button 
+        @click="loginWithStrava" 
+        class="w-full flex items-center justify-center gap-2 bg-fenix-orange text-white py-3 rounded-xl font-black text-xs uppercase tracking-tight shadow-md"
+        :disabled="loading"
+      >
+        <span>Connect with</span>
+        <span class="bg-black text-white px-2 py-0.5 rounded-full">STRAVA</span>
+      </button>
+    </div>
 
     <!-- Filters -->
     <div class="max-w-2xl mx-auto px-4 py-4">
       <FilterTabs
         :selected-gender="selectedGender"
-        :selected-category="selectedCategory"
         @update:gender="selectedGender = $event"
-        @update:category="selectedCategory = $event"
       />
     </div>
 
@@ -29,24 +50,24 @@
     <div class="max-w-2xl mx-auto px-4">
       <!-- Loading State -->
       <div v-if="loading" class="text-center py-12">
-        <div class="inline-block w-12 h-12 border-4 border-strava-orange border-t-transparent rounded-full animate-spin"></div>
-        <p class="mt-4 text-strava-gray-600">Cargando rankings...</p>
+        <div class="inline-block w-12 h-12 border-4 border-fenix-orange border-t-transparent rounded-full animate-spin"></div>
+        <p class="mt-4 text-fenix-gray-600 font-bold uppercase text-xs tracking-widest">Sincronizando...</p>
       </div>
 
       <!-- Error State -->
       <div v-else-if="error" class="text-center py-12">
         <span class="text-5xl mb-4 block">⚠️</span>
-        <p class="text-strava-gray-700 font-medium">{{ error }}</p>
-        <button @click="fetchRankings" class="btn-primary mt-4">
+        <p class="text-fenix-gray-700 font-bold uppercase text-sm tracking-wide">{{ error }}</p>
+        <button @click="fetchRankings" class="btn-primary mt-6">
           Reintentar
         </button>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="rankings.length === 0" class="text-center py-12">
-        <span class="text-5xl mb-4 block">🏁</span>
-        <p class="text-strava-gray-700 font-medium">No hay actividades esta semana</p>
-        <p class="text-strava-gray-500 text-sm mt-2">¡Sal a pedalear!</p>
+      <div v-else-if="rankings.length === 0" class="text-center py-12 px-6">
+        <span class="text-5xl mb-6 block">🏁</span>
+        <p class="text-fenix-black font-black uppercase tracking-widest">No hay registros</p>
+        <p class="text-fenix-gray-500 text-xs mt-3 font-bold uppercase tracking-tight">¡Sé el primero en salir a pedalear!</p>
       </div>
 
       <!-- Rankings -->
@@ -80,7 +101,6 @@ export default {
     const error = ref(null);
     const rankings = ref([]);
     const selectedGender = ref(null);
-    const selectedCategory = ref('general');
     const weekStart = ref(null);
     const weekEnd = ref(null);
 
@@ -103,9 +123,8 @@ export default {
       
       try {
         const data = await rankingsApi.getWeeklyRankings(
-          selectedCategory.value,
           selectedGender.value,
-          0
+          -1
         );
         
         rankings.value = data.rankings;
@@ -119,13 +138,46 @@ export default {
       }
     };
 
+    const loginWithStrava = async () => {
+      try {
+        const url = await rankingsApi.getLoginUrl();
+        window.location.href = url;
+      } catch (err) {
+        console.error('Error getting login URL:', err);
+        error.value = 'No se pudo iniciar la conexión con Strava.';
+      }
+    };
+
+    const handleCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      
+      if (code) {
+        loading.value = true;
+        try {
+          await rankingsApi.sendAuthCallback(code);
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // Refresh rankings
+          await fetchRankings();
+          alert('¡Conectado con éxito! Tus datos ahora aparecerán en el ranking.');
+        } catch (err) {
+          console.error('Error in auth callback:', err);
+          error.value = 'Error al autorizar con Strava.';
+        } finally {
+          loading.value = false;
+        }
+      }
+    };
+
     // Watch for filter changes
-    watch([selectedGender, selectedCategory], () => {
+    watch([selectedGender], () => {
       fetchRankings();
     });
 
     // Initial load
-    onMounted(() => {
+    onMounted(async () => {
+      await handleCallback();
       fetchRankings();
     });
 
@@ -134,9 +186,9 @@ export default {
       error,
       rankings,
       selectedGender,
-      selectedCategory,
       weekRange,
-      fetchRankings
+      fetchRankings,
+      loginWithStrava
     };
   }
 }

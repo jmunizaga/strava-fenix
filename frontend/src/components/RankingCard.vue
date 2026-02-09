@@ -1,5 +1,5 @@
 <template>
-  <div class="card card-hover p-4 mb-3">
+  <div class="card card-hover p-5 mb-4 border-l-4 border-fenix-orange group">
     <div class="flex items-center gap-4">
       <!-- Rank Badge -->
       <div class="flex-shrink-0">
@@ -18,17 +18,17 @@
             v-if="athlete.profile"
             :src="athlete.profile" 
             :alt="athleteName"
-            class="w-10 h-10 rounded-full object-cover border-2 border-strava-gray-200"
+            class="w-12 h-12 rounded-full object-cover border-2 border-fenix-orange shadow-md"
           />
           <div 
             v-else
-            class="w-10 h-10 rounded-full bg-strava-gray-300 flex items-center justify-center text-white font-semibold"
+            class="w-12 h-12 rounded-full bg-fenix-black flex items-center justify-center text-white font-black text-sm border-2 border-fenix-orange shadow-md"
           >
             {{ initials }}
           </div>
           <div class="min-w-0">
-            <h3 class="font-semibold text-base text-strava-gray-900 truncate">{{ athleteName }}</h3>
-            <p class="text-xs text-strava-gray-500">{{ metrics.activities_count }} actividades</p>
+            <h3 class="font-black text-lg text-fenix-black truncate uppercase tracking-tight group-hover:text-fenix-orange transition-colors">{{ athleteName }}</h3>
+            <p class="text-[10px] font-bold text-fenix-gray-500 uppercase tracking-[0.15em]">{{ metrics.activities_count }} sesiones de entrenamiento</p>
           </div>
         </div>
 
@@ -98,7 +98,7 @@ export default {
       } else if (this.rank === 3) {
         return 'bg-gradient-to-br from-orange-400 to-orange-600 text-white';
       }
-      return 'bg-strava-gray-200 text-strava-gray-700';
+      return 'bg-fenix-gray-200 text-fenix-gray-600';
     }
   }
 }

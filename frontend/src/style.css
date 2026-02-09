@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-strava-gray-50 text-strava-gray-800 font-sans;
+    @apply bg-fenix-gray-100 text-fenix-gray-900 font-sans;
   }
 }
 
@@ -12,24 +12,24 @@
   .card {
     @apply bg-white rounded-xl shadow-sm;
   }
-  
+
   .card-hover {
     @apply transition-all duration-200 hover:shadow-md;
   }
-  
+
   .btn-primary {
-    @apply bg-strava-orange text-white px-6 py-3 rounded-lg font-medium transition-colors hover:bg-strava-orange-dark;
+    @apply bg-fenix-orange text-white px-6 py-3 rounded-lg font-bold transition-all hover:bg-fenix-orange-dark shadow-sm hover:shadow-md active:scale-95;
   }
-  
+
   .tab-button {
     @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
   }
-  
+
   .tab-active {
-    @apply bg-strava-orange text-white;
+    @apply bg-fenix-black text-white;
   }
-  
+
   .tab-inactive {
-    @apply bg-white text-strava-gray-600 hover:bg-strava-gray-100;
+    @apply bg-white text-fenix-gray-600 hover:bg-fenix-gray-200;
   }
 }
